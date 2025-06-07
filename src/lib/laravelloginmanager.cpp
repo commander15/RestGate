@@ -17,7 +17,7 @@ using namespace RestLink;
 namespace RestGate {
 
 LaravelLoginManager::LaravelLoginManager(RestLink::Api *api)
-    : m_api(api)
+    : api(api)
 {
 }
 
@@ -31,7 +31,7 @@ void LaravelLoginManager::attemptLogIn(const LoginQuery &query, const DataQueryR
     object.put("email", query.identifier());
     object.put("password", query.password());
 
-    m_api->post(newRequest(LogIn, query), object, [=](RestLink::Response *response) {
+    api->post(newRequest(LogIn, query), object, [=](RestLink::Response *response) {
         DataGate::DataResponse res;
         res.setSuccess(response->isSuccess());
 
@@ -60,7 +60,7 @@ void LaravelLoginManager::attemptLogOut(const LoginQuery &query, const DataQuery
         return;
     }
 
-    m_api->post(request, query.object(), [=](RestLink::Response *response) {
+    api->post(request, query.object(), [=](RestLink::Response *response) {
         DataGate::DataResponse res;
 
         if (response->isSuccess()) {

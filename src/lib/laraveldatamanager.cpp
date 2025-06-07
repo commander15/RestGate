@@ -20,7 +20,7 @@ using namespace RestLink;
 namespace RestGate {
 
 LaravelDataManager::LaravelDataManager(Api *api)
-    : m_api(api)
+    : api(api)
 {
 }
 
@@ -47,7 +47,7 @@ void LaravelDataManager::fetchSomeSearchSuggestions(const DataQuery &query, cons
         onResponse(res);
     };
 
-    Response *response = m_api->get(request);
+    Response *response = api->get(request);
     registerResponse(response, processing, onProgress);
 }
 
@@ -118,7 +118,7 @@ void LaravelDataManager::fetchManyObjects(const DataQuery &query, const DataQuer
         onResponse(res);
     };
 
-    Response *response = m_api->get(request);
+    Response *response = api->get(request);
     registerResponse(response, processing, onProgress);
 }
 
@@ -134,7 +134,7 @@ void LaravelDataManager::fetchOneObject(const DataQuery &query, const DataQueryP
         onResponse(res);
     };
 
-    Response *response = m_api->get(request);
+    Response *response = api->get(request);
     registerResponse(response, processing, onProgress);
 }
 
@@ -150,7 +150,7 @@ void LaravelDataManager::addOneObject(const DataQuery &query, const DataQueryPro
         onResponse(res);
     };
 
-    Response *response = m_api->post(request, query.object());
+    Response *response = api->post(request, query.object());
     registerResponse(response, processing, onProgress);
 }
 
@@ -166,7 +166,7 @@ void LaravelDataManager::editOneObject(const DataQuery &query, const DataQueryPr
         onResponse(res);
     };
 
-    Response *response = m_api->put(request, query.object());
+    Response *response = api->put(request, query.object());
     registerResponse(response, processing, onProgress);
 }
 
@@ -181,7 +181,7 @@ void LaravelDataManager::deleteOneObject(const DataGate::DataQuery &query, const
         onResponse(res);
     };
 
-    Response *response = m_api->deleteResource(request);
+    Response *response = api->deleteResource(request);
     registerResponse(response, processing, onProgress);
 }
 
@@ -202,7 +202,7 @@ void LaravelDataManager::deleteManyObjects(const DataQuery &query, const DataQue
         return value.toObject().value("id");
     });
 
-    Response *response = m_api->post(request, ids);
+    Response *response = api->post(request, ids);
     registerResponse(response, processing, onProgress);
 }
 

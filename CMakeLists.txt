@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.30)
 
 project(RestGate
     DESCRIPTION "Bridge between DataGate and RestLink"
-    VERSION     "1.0.0"
+    VERSION     "1.0.1"
     LANGUAGES   CXX C
 )
 

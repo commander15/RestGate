@@ -26,8 +26,7 @@ protected:
 
     virtual RestLink::Request newRequest(Operation operation, const DataGate::LoginQuery &query) const;
 
-private:
-    RestLink::Api *m_api;
+    RestLink::Api *api;
 };
 
 } // namespace RestGate

@@ -31,11 +31,9 @@ protected:
     void deleteManyObjects(const DataGate::DataQuery &query, const DataGate::DataQueryProgressCallback &onProgress, const DataGate::DataQueryResponseCallback &onResponse) override;
 
     virtual RestLink::Request newRequest(const QString &subEndpoint, const DataGate::DataQuery &query) const;
-
-private:
-    RestLink::Api *m_api;
-
     void registerResponse(RestLink::Response *response, const RestLink::ApiRunCallback &callback, const DataGate::DataQueryProgressCallback &onProgress);
+
+    RestLink::Api *api;
 };
 
 } // namespace RestGate
