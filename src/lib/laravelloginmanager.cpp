@@ -17,7 +17,7 @@ using namespace RestLink;
 namespace RestGate {
 
 LaravelLoginManager::LaravelLoginManager(RestLink::Api *api)
-    : api(api)
+    : m_api(api)
 {
 }
 
@@ -25,13 +25,13 @@ LaravelLoginManager::~LaravelLoginManager()
 {
 }
 
-void LaravelLoginManager::attemptLogIn(const LoginQuery &query, const DataQueryResponseCallback &callback)
+void LaravelLoginManager::attemptLogIn(const LoginRequest &request, const DataResponseCallback &callback)
 {
     Jsoner::Object object;
-    object.put("email", query.identifier());
-    object.put("password", query.password());
+    object.put("email", request.identifier());
+    object.put("password", request.password());
 
-    api->post(newRequest(LogIn, query), object, [=](RestLink::Response *response) {
+    m_api->post(newRequest(LogIn, request), object, [=](RestLink::Response *response) {
         DataGate::DataResponse res;
         res.setSuccess(response->isSuccess());
 
@@ -50,17 +50,17 @@ void LaravelLoginManager::attemptLogIn(const LoginQuery &query, const DataQueryR
     });
 }
 
-void LaravelLoginManager::attemptLogOut(const LoginQuery &query, const DataQueryResponseCallback &callback)
+void LaravelLoginManager::attemptLogOut(const LoginRequest &request, const DataResponseCallback &callback)
 {
-    Request request = newRequest(LogOut, query);
-    if (!request.endpoint().isEmpty()) {
+    Request req = newRequest(LogOut, request);
+    if (!req.endpoint().isEmpty()) {
         DataResponse response;
         response.setSuccess(true);
         callback(response);
         return;
     }
 
-    api->post(request, query.object(), [=](RestLink::Response *response) {
+    m_api->post(req, request.object(), [callback](RestLink::Response *response) {
         DataGate::DataResponse res;
 
         if (response->isSuccess()) {
@@ -79,13 +79,13 @@ void LaravelLoginManager::attemptLogOut(const LoginQuery &query, const DataQuery
     });
 }
 
-Request LaravelLoginManager::newRequest(Operation operation, const DataGate::LoginQuery &query) const
+Request LaravelLoginManager::newRequest(Operation operation, const DataGate::LoginRequest &request) const
 {
-    Q_UNUSED(query);
+    Q_UNUSED(request);
 
-    RestLink::Request request(operation == LogIn ? "/user/login" : "/user/logout");
-    request.setHeader("Accept", "application/json");
-    return request;
+    RestLink::Request req(operation == LogIn ? "/user/login" : "/user/logout");
+    req.setHeader("Accept", "application/json");
+    return req;
 }
 
 

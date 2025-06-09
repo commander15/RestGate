@@ -21,12 +21,13 @@ public:
 protected:
     enum Operation { LogIn, LogOut };
 
-    void attemptLogIn(const DataGate::LoginQuery &query, const DataGate::DataQueryResponseCallback &callback) override;
-    void attemptLogOut(const DataGate::LoginQuery &query, const DataGate::DataQueryResponseCallback &callback) override;
+    void attemptLogIn(const DataGate::LoginRequest &request, const DataGate::DataResponseCallback &callback) override;
+    void attemptLogOut(const DataGate::LoginRequest &request, const DataGate::DataResponseCallback &callback) override;
 
-    virtual RestLink::Request newRequest(Operation operation, const DataGate::LoginQuery &query) const;
+    virtual RestLink::Request newRequest(Operation operation, const DataGate::LoginRequest &request) const;
 
-    RestLink::Api *api;
+private:
+    RestLink::Api *m_api;
 };
 
 } // namespace RestGate

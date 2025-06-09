@@ -11,7 +11,8 @@ target_headers(RestGate
     PUBLIC
         restgate.h
         global.h config.h
-        laravelloginmanager.h laraveldatamanager.h
+        datamanager.h
+        laravel.h laravelloginmanager.h laraveldatamanager.h
     PRIVATE
         debug_p.h
 )
@@ -19,6 +20,7 @@ target_headers(RestGate
 target_sources(RestGate
     PRIVATE
         debug.cpp
+        datamanager.cpp
         laravelloginmanager.cpp laraveldatamanager.cpp
 )
 
@@ -38,6 +40,8 @@ target_compile_definitions(RestGate
 )
 
 target_link_libraries(RestGate PUBLIC Qt::Core Qt::Network DataGate::DataGate RestLink::RestLink)
+
+install(CODE "file(REMOVE_RECURSE ${CMAKE_INSTALL_PREFIX}/include/RestGate)")
 
 install(TARGETS RestGate
     EXPORT RestGateTargets

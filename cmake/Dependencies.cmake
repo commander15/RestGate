@@ -16,9 +16,9 @@ FetchContent_Declare(
 FetchContent_Declare(
     DataGate
     GIT_REPOSITORY https://github.com/commander15/DataGate.git
-    GIT_TAG v2.0.1
+    GIT_TAG v3.0.0
     EXCLUDE_FROM_ALL
-    FIND_PACKAGE_ARGS 2.0.1
+    FIND_PACKAGE_ARGS 3.0.0
 )
 
 # RestLink

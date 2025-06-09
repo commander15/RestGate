@@ -3,7 +3,6 @@
 
 #include <RestGate/global.h>
 
-#include <RestGate/laravelloginmanager.h>
-#include <RestGate/laraveldatamanager.h>
+#include <RestGate/datamanager.h>
 
 #endif // RESTGATE_H

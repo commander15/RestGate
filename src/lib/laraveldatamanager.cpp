@@ -5,7 +5,7 @@
 #include <Jsoner/object.h>
 #include <Jsoner/array.h>
 
-#include <DataGate/dataquery.h>
+#include <DataGate/datarequest.h>
 #include <DataGate/dataresponse.h>
 #include <DataGate/abstractdataclient.h>
 
@@ -20,7 +20,7 @@ using namespace RestLink;
 namespace RestGate {
 
 LaravelDataManager::LaravelDataManager(Api *api)
-    : api(api)
+    : DataManager(api)
 {
 }
 
@@ -34,197 +34,192 @@ bool LaravelDataManager::hasFeature(Feature feature, AbstractDataClient *client)
     return client;
 }
 
-void LaravelDataManager::fetchSomeSearchSuggestions(const DataQuery &query, const DataQueryProgressCallback &onProgress, const DataQueryResponseCallback &onResponse)
+void LaravelDataManager::fetchSomeSearchSuggestions(const DataRequest &request, const DataRequestCallback &onProgress, const DataResponseCallback &onResponse)
 {
-    Request request = newRequest("/search/suggestions", query);
-    request.addQueryParameter("query", query.string());
-    request.setHeader("Accept", "application/json");
-
-    auto processing = [=](Response *response) {
-        DataResponse res;
-        res.setSuccess(response->isSuccess());
-        res.setArray(response->readJsonArray());
-        onResponse(res);
+    DataProcessor processor = {
+        .method = Method::GetMethod,
+        .requestConverter = [this](const DataRequest &request) -> Request {
+            Request newRequest = this->newRequest("/search/suggestions", request);
+            newRequest.addQueryParameter("query", request.query());
+            return newRequest;
+        },
+        .progressCallback = onProgress,
+        .responseCallback = onResponse
     };
 
-    Response *response = api->get(request);
-    registerResponse(response, processing, onProgress);
+    run(request, processor);
 }
 
-void LaravelDataManager::fetchManyObjects(const DataQuery &query, const DataQueryProgressCallback &onProgress, const DataQueryResponseCallback &onResponse)
+void LaravelDataManager::fetchManyObjects(const DataRequest &request, const DataRequestCallback &onProgress, const DataResponseCallback &onResponse)
 {
-    Request request = newRequest("/", (query));
-    request.setHeader("Accept", "application/json");
+    DataProcessor processor = {
+        .method = Method::GetMethod,
+        .requestConverter = [this](const DataRequest &request) -> Request {
+            Request newRequest = this->newRequest("/", request);
 
-    const QString queryString = query.string();
-    if (queryString.size() > 0)
-        request.addQueryParameter("query", queryString);
+            if (request.hasQuery())
+                newRequest.addQueryParameter("query", request.query());
 
-    const QVariantHash filters = query.filters();
-    const QStringList filterNames = filters.keys();
-    for (const QString &filterName : filterNames)
-        request.addQueryParameter(filterName, filters.value(filterName));
+            const QVariantMap filters = request.filters();
+            const QStringList filterNames = filters.keys();
+            for (const QString &filterName : filterNames)
+                newRequest.addQueryParameter(filterName, filters.value(filterName));
 
-    const QString sortField = query.sortField();
-    if (!sortField.isEmpty())
-        request.addQueryParameter("sort_by", sortField + '.' + (query.sortOrder() == Qt::DescendingOrder ? "desc" : "asc"));
+            if (request.hasSort())
+                newRequest.addQueryParameter("sort_by", request.sortField() + '.' + (request.sortOrder() == Qt::DescendingOrder ? "desc" : "asc"));
 
-    request.addQueryParameter("page", query.page());
+            return newRequest;
+        },
+        .responseConverter = [](Response *response) -> DataResponse {
+            DataResponse res;
 
-    auto processing = [=](Response *response) {
-        DataResponse res;
-        res.setSuccess(response->isSuccess());
+            if (response->isSuccess()) {
+                const Object object = response->readJsonObject();
+                res.setArray(object.array("data"));
+                res.setPage(object.integer("current_page"));
+                res.setPageCount(object.integer("last_page"));
 
-        if (response->isSuccess()) {
-            const Object object = response->readJsonObject();
-            res.setArray(object.array("data"));
-            res.setPage(object.integer("current_page"));
-            res.setPageCount(object.integer("last_page"));
+                const QStringList fields = { "from", "to", "per_page", "total" };
+                for (const QString &field : fields)
+                    res.setData(field, object.variant(field));
+            } else if (response->hasHttpStatusCode()) {
+                const Object object = response->readJsonObject();
 
-            const QStringList fields = { "from", "to", "per_page", "total" };
-            for (const QString &field : fields)
-                res.setData(field, object.variant(field));
-        } else if (response->hasHttpStatusCode()) {
-            const Object object = response->readJsonObject();
+                res.setTitle(tr("Error"));
+                res.setText(tr("The server reported an error."));
+                if (object.has("message"))
+                    res.setInformativeText(object.string("message"));
 
-            res.setTitle(tr("Error"));
-            res.setText(tr("The server reported an error."));
-            if (object.has("message"))
-                res.setInformativeText(object.string("message"));
+                if (object.contains("errors")) {
+                    QString msg;
+                    const Array errors = object.array("errors");
 
-            if (object.contains("errors")) {
-                QString msg;
-                const Array errors = object.array("errors");
+                    for (const QJsonValue &value : errors)
+                        msg.append(value.toString() + "\n");
 
-                for (const QJsonValue &value : errors)
-                    msg.append(value.toString() + "\n");
+                    msg.append(QStringLiteral("\nStatus: HTTP %1 %2").arg(response->httpStatusCode()).arg(response->httpReasonPhrase()));
+                    msg.append("\n*" + tr("If the problem persists, please contact the developer."));
 
-                msg.append(QStringLiteral("\nStatus: HTTP %1 %2").arg(response->httpStatusCode()).arg(response->httpReasonPhrase()));
-                msg.append("\n*" + tr("If the problem persists, please contact the developer."));
+                    res.setDetailedText(msg);
+                }
 
-                res.setDetailedText(msg);
+                res.setObject(object);
+            } else if (response->hasNetworkError()) {
+                res.setTitle(tr("Network Error"));
+                res.setText(tr("A network error occured"));
+                res.setDetailedText(response->networkErrorString());
+            } else {
+                res.setTitle(tr("Error"));
+                res.setText(tr("An unknown error occured, we don't known more"));
             }
 
-            res.setObject(object);
-        } else if (response->hasNetworkError()) {
-            res.setTitle(tr("Network Error"));
-            res.setText(tr("A network error occured"));
-            res.setDetailedText(response->networkErrorString());
-        } else {
-            res.setTitle(tr("Error"));
-            res.setText(tr("An unknown error occured, we don't known more"));
-        }
-
-        onResponse(res);
+            return res;
+        },
+        .progressCallback = onProgress,
+        .responseCallback = onResponse
     };
 
-    Response *response = api->get(request);
-    registerResponse(response, processing, onProgress);
+    run(request, processor);
 }
 
-void LaravelDataManager::fetchOneObject(const DataQuery &query, const DataQueryProgressCallback &onProgress, const DataQueryResponseCallback &onResponse)
+void LaravelDataManager::fetchOneObject(const DataRequest &request, const DataRequestCallback &onProgress, const DataResponseCallback &onResponse)
 {
-    Request request = newRequest('/' + query.object().string("id"), query);
-    request.setHeader("Accept", "application/json");
-
-    auto processing = [=](Response *response) {
-        DataResponse res;
-        res.setSuccess(response->isSuccess());
-        res.setObject(response->readJsonObject());
-        onResponse(res);
+    DataProcessor processor = {
+        .method = Method::GetMethod,
+        .requestConverter = [this](const DataRequest &request) -> Request {
+            return newRequest("/" + request.object().string("id"), request);
+        },
+        .progressCallback = onProgress,
+        .responseCallback = onResponse
     };
 
-    Response *response = api->get(request);
-    registerResponse(response, processing, onProgress);
+    run(request, processor);
 }
 
-void LaravelDataManager::addOneObject(const DataQuery &query, const DataQueryProgressCallback &onProgress, const DataQueryResponseCallback &onResponse)
+void LaravelDataManager::addOneObject(const DataRequest &request, const DataRequestCallback &onProgress, const DataResponseCallback &onResponse)
 {
-    Request request = newRequest("/", (query));
-    request.setHeader("Accept", "application/json");
-
-    auto processing = [=](Response *response) {
-        DataResponse res;
-        res.setSuccess(response->isSuccess());
-        res.setObject(response->readJsonObject());
-        onResponse(res);
+    DataProcessor processor = {
+        .method = Method::PostMethod,
+        .requestConverter = [this](const DataRequest &request) -> Request {
+            return newRequest("/" + request.object().string("id"), request);
+        },
+        .bodyGenerator = [](const DataRequest &request) -> Body {
+            return Body(request.object());
+        },
+        .progressCallback = onProgress,
+        .responseCallback = onResponse
     };
 
-    Response *response = api->post(request, query.object());
-    registerResponse(response, processing, onProgress);
+    run(request, processor);
 }
 
-void LaravelDataManager::editOneObject(const DataQuery &query, const DataQueryProgressCallback &onProgress, const DataQueryResponseCallback &onResponse)
+void LaravelDataManager::editOneObject(const DataRequest &request, const DataRequestCallback &onProgress, const DataResponseCallback &onResponse)
 {
-    Request request = newRequest('/' + query.object().string("id"), query);
-    request.setHeader("Accept", "application/json");
-
-    auto processing = [=](Response *response) {
-        DataResponse res;
-        res.setSuccess(response->isSuccess());
-        res.setObject(response->readJsonObject());
-        onResponse(res);
+    DataProcessor processor = {
+        .method = Method::PutMethod,
+        .requestConverter = [this](const DataRequest &request) -> Request {
+            return newRequest("/" + request.object().string("id"), request);
+        },
+        .bodyGenerator = [](const DataRequest &request) -> Body {
+            return Body(request.object());
+        },
+        .progressCallback = onProgress,
+        .responseCallback = onResponse
     };
 
-    Response *response = api->put(request, query.object());
-    registerResponse(response, processing, onProgress);
+    run(request, processor);
 }
 
-void LaravelDataManager::deleteOneObject(const DataGate::DataQuery &query, const DataGate::DataQueryProgressCallback &onProgress, const DataGate::DataQueryResponseCallback &onResponse)
+void LaravelDataManager::deleteOneObject(const DataGate::DataRequest &request, const DataGate::DataRequestCallback &onProgress, const DataGate::DataResponseCallback &onResponse)
 {
-    Request request = newRequest('/' + query.object().string("id"), query);
-
-    auto processing = [=](Response *response) {
-        DataResponse res;
-        res.setSuccess(response->isSuccess());
-        res.setObject(response->readJsonObject());
-        onResponse(res);
+    DataProcessor processor = {
+        .method = Method::DeleteMethod,
+        .requestConverter = [this](const DataRequest &request) -> Request {
+            return newRequest("/" + request.object().string("id"), request);
+        },
+        .progressCallback = onProgress,
+        .responseCallback = onResponse
     };
 
-    Response *response = api->deleteResource(request);
-    registerResponse(response, processing, onProgress);
+    run(request, processor);
 }
 
-void LaravelDataManager::deleteManyObjects(const DataQuery &query, const DataQueryProgressCallback &onProgress, const DataQueryResponseCallback &onResponse)
+void LaravelDataManager::deleteManyObjects(const DataRequest &request, const DataRequestCallback &onProgress, const DataResponseCallback &onResponse)
 {
-    Request request = newRequest("/bulk-delete", query);
+    DataProcessor processor = {
+        .method = Method::PostMethod,
+        .requestConverter = [this](const DataRequest &request) -> Request {
+            return newRequest("/bulk-delete", request);
+        },
+        .bodyGenerator = [](const DataRequest &request) -> Body {
+            Array objects = request.array();
+            std::transform(objects.begin(), objects.end(), objects.begin(), [](const QJsonValue &value) {
+                return value.toObject().value("id");
+            });
 
-    auto processing = [=](Response *response) {
-        DataResponse res;
-        res.setSuccess(response->isSuccess());
-        res.setObject(response->readJsonObject());
-        onResponse(res);
+            Object object;
+            object.put("ids", objects);
+            return Body(object);
+        },
+        .progressCallback = onProgress,
+        .responseCallback = onResponse
     };
 
-    Array ids;
-    Array objects = query.array();
-    std::transform(objects.begin(), objects.end(), std::back_inserter(ids), [](const QJsonValue &value) {
-        return value.toObject().value("id");
-    });
-
-    Response *response = api->post(request, ids);
-    registerResponse(response, processing, onProgress);
+    run(request, processor);
 }
 
-Request LaravelDataManager::newRequest(const QString &subEndpoint, const DataGate::DataQuery &query) const
+Request LaravelDataManager::newRequest(const QString &subEndpoint, const DataGate::DataRequest &request) const
 {
-    QString endpoint = query.parameter("endpoint").toString();
-    if (endpoint.isEmpty() && query.client())
-        endpoint = query.client()->parameter("endpoint").toString();
+    QString endpoint = request.parameter("endpoint").toString();
+    if (endpoint.isEmpty() && request.client())
+        endpoint = request.client()->parameter("endpoint").toString();
 
     if  (endpoint.isEmpty())
         return Request();
 
-    Request request = endpoint  + (subEndpoint == '/' ? QString() : subEndpoint);
-    request.setHeader("Accept", "application/json");
-    return request;
-}
-
-void LaravelDataManager::registerResponse(Response *response, const ApiRunCallback &callback, const DataQueryProgressCallback &onProgress)
-{
-    QObject::connect(response, &Response::downloadProgress, response, onProgress);
-    QObject::connect(response, &Response::finished, response, [callback, response] { callback(response); });
-    QObject::connect(response, &Response::finished, response, &QObject::deleteLater);
+    Request req(endpoint  + (subEndpoint == '/' ? QString() : subEndpoint));
+    req.setHeader("Accept", "application/json");
+    return req;
 }
 
 } // namespace RestGate
