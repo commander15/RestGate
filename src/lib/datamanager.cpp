@@ -37,6 +37,7 @@ void DataManager::run(const DataGate::DataRequest &request, const DataProcessor 
         restRequest.setEndpoint(processor.endpoint);
 
     Body restBody = (processor.bodyGenerator ? processor.bodyGenerator(request) : Body());
+
     Response *restResponse = api->send(processor.method, restRequest, restBody);
 
     if (!restResponse) {
@@ -52,9 +53,12 @@ void DataManager::run(const DataGate::DataRequest &request, const DataProcessor 
 
     QObject::connect(restResponse, &Response::finished, restResponse, [processor, restResponse] {
         DataResponse response;
+        response.setCode(restResponse->httpStatusCode());
+        response.setSuccess(restResponse->isSuccess());
+
         if (processor.responseConverter)
             response = processor.responseConverter(restResponse);
-        else if (restResponse->header("Content-Type") == "application/json") {
+        else {
             const QJsonValue value = restResponse->readJson();
             if (value.isObject())
                 response.setObject(value.toObject());
@@ -62,9 +66,8 @@ void DataManager::run(const DataGate::DataRequest &request, const DataProcessor 
                 response.setArray(value.toArray());
         }
 
-        response.setCode(restResponse->httpStatusCode());
-        response.setSuccess(restResponse->isSuccess());
         processor.responseCallback(response);
+        restResponse->deleteLater();
     });
 }
 
